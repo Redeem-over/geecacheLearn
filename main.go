@@ -50,8 +50,8 @@ func startAPIServer(apiAddr string, gee *geecache.Group) {
 	log.Fatal(http.ListenAndServe(apiAddr[7:], nil))
 }
 func main() {
-	var port int
-	var api bool
+	var port int //指定端口号
+	var api bool //与用户交互的服务器,本代码中的apiserver和创建的cacheserver共享一个group
 	flag.IntVar(&port, "port", 8001, "Geecache server port")
 	flag.BoolVar(&api, "api", false, "Start a api server?")
 	flag.Parse()
