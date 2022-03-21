@@ -2,6 +2,7 @@ package geecache
 
 import (
 	"fmt"
+	"geecache/sinf"
 	"log"
 	"sync"
 )
@@ -20,6 +21,7 @@ type Group struct {
 	getter    Getter
 	mainCache cache
 	peers     PeerPicker //这指的是服务端的实现，不要想到peer结点的集合
+	loader    *sinf.Group
 }
 
 var (
@@ -79,15 +81,25 @@ func (g *Group) RegisterPeers(peers PeerPicker) {
 	g.peers = peers
 }
 func (g *Group) load(key string) (value ByteView, err error) {
-	if g.peers != nil {
-		if peer, ok := g.peers.PickPeer(key); ok {
-			if value, err = g.getFromPeer(peer, key); err == nil {
-				return value, nil
+	// each key is only fetched once (either locally or remotely)
+	// regardless of the number of concurrent callers.
+	viewi, err := g.loader.Do(key, func() (interface{}, error) {
+		if g.peers != nil {
+			if peer, ok := g.peers.PickPeer(key); ok {
+				if value, err = g.getFromPeer(peer, key); err == nil {
+					return value, nil
+				}
+				log.Println("[GeeCache] Failed to get from peer", err)
 			}
 		}
-		log.Println("[GeeCache] Failed to get from peer", err)
+
+		return g.getLocally(key)
+	})
+
+	if err == nil {
+		return viewi.(ByteView), nil
 	}
-	return g.getLocally(key)
+	return
 }
 func (g *Group) getFromPeer(peer PeerGetter, key string) (ByteView, error) {
 	bytes, err := peer.Get(g.name, key)
